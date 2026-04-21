@@ -1,0 +1,64 @@
+"""Activation cache experiment entrypoint."""
+
+from __future__ import annotations
+
+from mechinterp.core.cache import build_names_filter, compact_cache, save_activation_artifacts, select_records
+from mechinterp.core.model import ModelWrapper
+from mechinterp.core.runner import get_task, load_experiment_config, read_json, run_dir
+from mechinterp.experiments.run_behavior import run as run_behavior
+
+
+def run(task_name: str, config_path: str) -> dict:
+    """Cache selected activations for scored examples."""
+
+    config = load_experiment_config(config_path)
+    get_task(task_name)
+
+    behavior_path = run_dir(config, config_path) / "behavior" / "results.json"
+    if behavior_path.exists():
+        behavior_payload = read_json(behavior_path)
+    else:
+        behavior_payload = run_behavior(task_name, config_path)
+
+    records = select_records(list(behavior_payload["results"]), config.cache.cache_num_examples)
+    names_filter = build_names_filter(config.cache.cache_hook_names)
+    model = ModelWrapper(config)
+
+    activations: dict[str, dict] = {}
+    selected_metadata: list[dict] = []
+
+    for index, row in enumerate(records):
+        prompt = row["prompt"]
+        _, cache = model.run_with_cache(
+            prompt,
+            names_filter=names_filter,
+            stop_at_layer=config.cache.stop_at_layer,
+            return_type="logits",
+            prepend_bos=True,
+        )
+        example_id = f"example_{index}"
+        activations[example_id] = compact_cache(cache)
+        selected_metadata.append(
+            {
+                "example_id": example_id,
+                "prompt": prompt,
+                "split": row["split"],
+                "template_id": row["template_id"],
+            }
+        )
+
+    cache_dir = run_dir(config, config_path) / "cache"
+    metadata = {
+        "task": task_name,
+        "model_name": config.model_name,
+        "hook_names": config.cache.cache_hook_names,
+        "stop_at_layer": config.cache.stop_at_layer,
+        "selected_examples": selected_metadata,
+    }
+    save_activation_artifacts(
+        cache_dir / "activations.pt",
+        cache_dir / "metadata.json",
+        activations=activations,
+        metadata=metadata,
+    )
+    return metadata

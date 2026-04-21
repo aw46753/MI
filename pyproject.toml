@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mechinterp"
+version = "0.1.0"
+description = "Small mechanistic interpretability starter repo for GPT-2 IOI experiments with TransformerLens."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "OpenAI Codex" }]
+dependencies = [
+    "PyYAML>=6,<7",
+    "torch>=2.11,<3",
+    "transformer_lens>=3,<4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9,<10",
+]
+
+[project.scripts]
+mechinterp = "mechinterp.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests that may download models or take longer to run",
+]
