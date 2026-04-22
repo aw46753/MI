@@ -35,6 +35,7 @@ cache_hook_names:
   - hook_resid_pre
 stop_at_layer: 10
 max_layer: 10
+patch_position_mode: all
 cache_num_examples: 4
 output_dir: outputs
 

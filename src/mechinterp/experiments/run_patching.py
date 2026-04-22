@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+from statistics import mean
+
 from mechinterp.core.cache import build_names_filter
 from mechinterp.core.hooks import make_residual_patch_hook
 from mechinterp.core.metrics import final_token_logit_diff, normalized_patch_effect
 from mechinterp.core.model import ModelWrapper
-from mechinterp.core.runner import ensure_dir, get_task, load_experiment_config, run_dir, write_csv, write_json
+from mechinterp.core.runner import ensure_dir, get_task, load_experiment_config, read_json, run_dir, write_csv, write_json
+from mechinterp.evaluation.metrics import annotate_prediction_rows
+from mechinterp.experiments.run_behavior import run as run_behavior
 from mechinterp.tasks.ioi.score import validate_single_token_candidate
 
 
@@ -17,76 +22,183 @@ def _layer_from_hook_name(hook_name: str) -> int:
         return -1
 
 
+def _selected_positions(num_positions: int, position_mode: str) -> list[int]:
+    if position_mode == "all":
+        return list(range(num_positions))
+    if position_mode == "final":
+        return [num_positions - 1]
+    raise ValueError(f"Unsupported patch position mode {position_mode!r}")
+
+
+def _aggregate_patch_rows(rows: list[dict]) -> dict:
+    by_layer_position: dict[tuple[int, int], list[float]] = defaultdict(list)
+    tokens_by_position: dict[int, list[str]] = defaultdict(list)
+
+    max_layer = -1
+    max_position = -1
+    for row in rows:
+        layer = int(row["layer"])
+        position = int(row["position"])
+        by_layer_position[(layer, position)].append(float(row["normalized_effect"]))
+        tokens_by_position[position].append(str(row["token"]))
+        max_layer = max(max_layer, layer)
+        max_position = max(max_position, position)
+
+    if max_layer < 0 or max_position < 0:
+        return {
+            "layer_labels": [],
+            "position_labels": [],
+            "mean_normalized_effect": [],
+            "top_entries": [],
+        }
+
+    matrix: list[list[float | None]] = []
+    for layer in range(max_layer + 1):
+        row_values: list[float | None] = []
+        for position in range(max_position + 1):
+            values = by_layer_position.get((layer, position))
+            row_values.append(mean(values) if values else None)
+        matrix.append(row_values)
+
+    position_labels = []
+    for position in range(max_position + 1):
+        token_counts: dict[str, int] = defaultdict(int)
+        for token in tokens_by_position.get(position, []):
+            token_counts[token] += 1
+        if token_counts:
+            label = max(token_counts.items(), key=lambda item: item[1])[0]
+            position_labels.append(f"{position}:{label}")
+        else:
+            position_labels.append(str(position))
+
+    top_entries = sorted(
+        (
+            {
+                "layer": layer,
+                "position": position,
+                "mean_normalized_effect": mean(values),
+            }
+            for (layer, position), values in by_layer_position.items()
+        ),
+        key=lambda entry: entry["mean_normalized_effect"],
+        reverse=True,
+    )[:10]
+
+    return {
+        "layer_labels": list(range(max_layer + 1)),
+        "position_labels": position_labels,
+        "mean_normalized_effect": matrix,
+        "top_entries": top_entries,
+    }
+
+
 def run(task_name: str, config_path: str) -> dict:
-    """Run a residual-stream patch sweep over matched IOI pairs."""
+    """Run residual-stream patching over matched error pairs."""
 
     config = load_experiment_config(config_path)
     task = get_task(task_name)
+    if not task.supports_patching():
+        raise ValueError(f"Patching is not implemented for task '{task_name}' yet.")
     model = ModelWrapper(config)
     hook_names = task.default_hook_names(config)
     names_filter = build_names_filter(hook_names)
 
+    behavior_path = run_dir(config, config_path, task_name=task_name) / "behavior" / "results.json"
+    if behavior_path.exists():
+        behavior_payload = read_json(behavior_path)
+    else:
+        behavior_payload = run_behavior(task_name, config_path)
+
+    behavior_rows = annotate_prediction_rows(list(behavior_payload["all_results"]))
     rows: list[dict] = []
     pair_count = 0
 
-    for split in ("standard", "shifted"):
-        dataset = task.build_dataset(split, config)
-        scored_examples = [task.score_example(model, example) for example in dataset]
-        pairs = task.make_pairs(dataset, scored_examples, model)
+    for source_error_type, target_error_type in (("FN", "TP"), ("FP", "TN")):
+        pairs = task.build_error_pairs(behavior_rows, source_error_type, target_error_type, model)
 
         for pair in pairs:
             pair_count += 1
-            clean_tokens = model.to_tokens(pair.clean_prompt, prepend_bos=True)
-            final_position = int(clean_tokens.shape[-1]) - 1
+            source_tokens = model.to_tokens(pair.source_prompt, prepend_bos=True)
+            source_str_tokens = model.to_str_tokens(pair.source_prompt, prepend_bos=True)
+            patch_positions = _selected_positions(
+                int(source_tokens.shape[-1]),
+                config.patch.position_mode,
+            )
+            final_position = int(source_tokens.shape[-1]) - 1
             correct_token_id = validate_single_token_candidate(model, pair.correct_token)
             wrong_token_id = validate_single_token_candidate(model, pair.wrong_token)
 
             _, clean_cache = model.run_with_cache(
-                pair.clean_prompt,
+                pair.target_prompt,
                 names_filter=names_filter,
                 stop_at_layer=config.patch.max_layer + 1,
-                return_type="logits",
+                return_type=None,
                 prepend_bos=True,
             )
+            target_logits = model.forward_logits(pair.target_prompt, prepend_bos=True)
+            target_logit_diff = final_token_logit_diff(
+                target_logits,
+                correct_token_id,
+                wrong_token_id,
+            )
+
+            source_prediction_positive = pair.source_logit_diff > 0.0
 
             for hook_name in hook_names:
-                patch_hook = make_residual_patch_hook(clean_cache, final_position)
-                patched_logits = model.run_with_hooks(
-                    pair.corrupted_prompt,
-                    fwd_hooks=[(hook_name, patch_hook)],
-                    return_type="logits",
-                    prepend_bos=True,
-                )
-                patched_logit_diff = final_token_logit_diff(
-                    patched_logits,
-                    correct_token_id,
-                    wrong_token_id,
-                )
-                rows.append(
-                    {
-                        "pair_id": pair.pair_id,
-                        "split": pair.split,
-                        "template_id": pair.template_id,
-                        "hook_name": hook_name,
-                        "layer": _layer_from_hook_name(hook_name),
-                        "clean_logit_diff": pair.clean_logit_diff,
-                        "corrupted_logit_diff": pair.corrupted_logit_diff,
-                        "patched_logit_diff": patched_logit_diff,
-                        "normalized_effect": normalized_patch_effect(
-                            pair.clean_logit_diff,
-                            pair.corrupted_logit_diff,
-                            patched_logit_diff,
-                        ),
-                    }
-                )
+                layer = _layer_from_hook_name(hook_name)
+                for position in patch_positions:
+                    patch_hook = make_residual_patch_hook(clean_cache, position)
+                    patched_logits = model.run_with_hooks(
+                        pair.source_prompt,
+                        fwd_hooks=[(hook_name, patch_hook)],
+                        return_type="logits",
+                        prepend_bos=True,
+                    )
+                    patched_logit_diff = final_token_logit_diff(
+                        patched_logits,
+                        correct_token_id,
+                        wrong_token_id,
+                    )
+                    patched_prediction_positive = patched_logit_diff > 0.0
+                    rows.append(
+                        {
+                            "pair_id": pair.pair_id,
+                            "split": pair.split,
+                            "source_error_type": pair.source_error_type,
+                            "target_error_type": pair.target_error_type,
+                            "hook_name": hook_name,
+                            "layer": layer,
+                            "position": position,
+                            "token": source_str_tokens[position],
+                            "final_position": final_position,
+                            "target_logit_diff": target_logit_diff,
+                            "source_logit_diff": pair.source_logit_diff,
+                            "patched_logit_diff": patched_logit_diff,
+                            "normalized_effect": normalized_patch_effect(
+                                target_logit_diff,
+                                pair.source_logit_diff,
+                                patched_logit_diff,
+                            ),
+                            "prediction_flipped": source_prediction_positive != patched_prediction_positive,
+                            "became_correct": (
+                                patched_prediction_positive
+                                if pair.source_error_type == "FN"
+                                else not patched_prediction_positive
+                            ),
+                            **pair.metadata,
+                        }
+                    )
 
-    patch_dir = ensure_dir(run_dir(config, config_path) / "patch")
+    patch_dir = ensure_dir(run_dir(config, config_path, task_name=task_name) / "patch")
     write_csv(patch_dir / "results.csv", rows)
+    aggregate = _aggregate_patch_rows(rows)
     payload = {
         "task": task_name,
         "model_name": config.model_name,
         "pair_count": pair_count,
         "hook_names": hook_names,
+        "position_mode": config.patch.position_mode,
+        "aggregate": aggregate,
         "results": rows,
     }
     write_json(patch_dir / "results.json", payload)

@@ -14,13 +14,13 @@ def run(task_name: str, config_path: str) -> dict:
     config = load_experiment_config(config_path)
     get_task(task_name)
 
-    behavior_path = run_dir(config, config_path) / "behavior" / "results.json"
+    behavior_path = run_dir(config, config_path, task_name=task_name) / "behavior" / "results.json"
     if behavior_path.exists():
         behavior_payload = read_json(behavior_path)
     else:
         behavior_payload = run_behavior(task_name, config_path)
 
-    records = select_records(list(behavior_payload["results"]), config.cache.cache_num_examples)
+    records = select_records(list(behavior_payload["all_results"]), config.cache.cache_num_examples)
     names_filter = build_names_filter(config.cache.cache_hook_names)
     model = ModelWrapper(config)
 
@@ -43,11 +43,12 @@ def run(task_name: str, config_path: str) -> dict:
                 "example_id": example_id,
                 "prompt": prompt,
                 "split": row["split"],
-                "template_id": row["template_id"],
+                "template_id": row.get("template_id"),
+                "error_type": row.get("error_type"),
             }
         )
 
-    cache_dir = run_dir(config, config_path) / "cache"
+    cache_dir = run_dir(config, config_path, task_name=task_name) / "cache"
     metadata = {
         "task": task_name,
         "model_name": config.model_name,

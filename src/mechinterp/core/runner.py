@@ -8,10 +8,12 @@ from pathlib import Path
 from typing import Any
 
 from mechinterp.core.config import ExperimentConfig, load_config
+from mechinterp.tasks.addition import AdditionTask
 from mechinterp.tasks.ioi import IOITask
 
 
 TASK_REGISTRY = {
+    "addition": AdditionTask(),
     "ioi": IOITask(),
 }
 
@@ -31,11 +33,13 @@ def load_experiment_config(config_path: str) -> ExperimentConfig:
     return config
 
 
-def run_dir(config: ExperimentConfig, config_path: str) -> Path:
+def run_dir(config: ExperimentConfig, config_path: str, *, task_name: str | None = None) -> Path:
     """Return the root output directory for a config file."""
 
     stem = Path(config_path).stem
-    return Path(config.output.output_dir) / stem
+    if task_name is None:
+        return Path(config.output.output_dir) / stem
+    return Path(config.output.output_dir) / task_name / stem
 
 
 def ensure_dir(path: str | Path) -> Path:

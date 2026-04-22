@@ -1,0 +1,20 @@
+model_name: gpt2
+device: cpu
+seed: 0
+
+dataset_sizes:
+  standard: 16
+  shifted: 16
+
+cache_hook_names:
+  - hook_resid_pre
+stop_at_layer: 10
+max_layer: 10
+cache_num_examples: 4
+output_dir: outputs
+
+compatibility_mode:
+  center_unembed: true
+  center_writing_weights: true
+  fold_ln: true
+  refactor_factored_attn_matrices: true

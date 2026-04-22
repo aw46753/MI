@@ -1,4 +1,4 @@
-"""IOI task package."""
+"""Two-digit addition task package."""
 
 from __future__ import annotations
 
@@ -6,16 +6,16 @@ from dataclasses import asdict
 from typing import Any
 
 from mechinterp.analysis.matched_pairs import build_matched_pairs_from_groups
+from mechinterp.core.hooks import resid_pre_hook_name
+from mechinterp.tasks.addition.data import AdditionExample, build_addition_dataset
 from mechinterp.tasks.base import Task
-from mechinterp.tasks.ioi.analysis import build_corrupted_prompt, build_matched_pairs, default_residual_hook_targets
-from mechinterp.tasks.ioi.data import IOIExample, build_ioi_dataset
 from mechinterp.tasks.ioi.score import IOIScoreResult, score_prompt_with_candidates
 
 
-class IOITask(Task):
-    """Indirect Object Identification task."""
+class AdditionTask(Task):
+    """Two-digit addition with no-carry and carry splits."""
 
-    name = "ioi"
+    name = "addition"
 
     def split_names(self, config: Any) -> list[str]:
         return ["standard", "shifted"]
@@ -36,15 +36,14 @@ class IOITask(Task):
             clean_rows.append(clean_row)
             all_rows.append(clean_row)
 
-            corrupted_prompt = build_corrupted_prompt(example)
             corrupted_result = score_prompt_with_candidates(
                 model,
-                corrupted_prompt,
+                example.corrupted_prompt,
                 correct_token=example.correct_token,
                 wrong_token=example.wrong_token,
                 metadata={
                     **clean_result.metadata,
-                    "prompt": corrupted_prompt,
+                    "prompt": example.corrupted_prompt,
                     "pair_role": "corrupted",
                 },
             )
@@ -65,10 +64,10 @@ class IOITask(Task):
             "negative_summary_name": "corrupted",
         }
 
-    def build_dataset(self, split: str, config: Any) -> list[IOIExample]:
-        return build_ioi_dataset(split, config)
+    def build_dataset(self, split: str, config: Any) -> list[AdditionExample]:
+        return build_addition_dataset(split, config)
 
-    def score_example(self, model: Any, example: IOIExample) -> IOIScoreResult:
+    def score_example(self, model: Any, example: AdditionExample) -> IOIScoreResult:
         return score_prompt_with_candidates(
             model,
             example.prompt,
@@ -81,11 +80,11 @@ class IOITask(Task):
 
     def make_pairs(
         self,
-        dataset: list[IOIExample],
+        dataset: list[AdditionExample],
         scored_examples: list[IOIScoreResult],
         model: Any,
     ) -> list[Any]:
-        return build_matched_pairs(dataset, scored_examples, model)
+        return []
 
     def build_error_pairs(
         self,
@@ -104,11 +103,13 @@ class IOITask(Task):
             target_error_type=target_error_type,
             model=model,
             pair_score=lambda left, right: (
-                0 if left.get("template_id") == right.get("template_id") else 10,
-                abs(len(str(left["prompt"])) - len(str(right["prompt"]))),
+                0 if bool(left.get("carries")) != bool(right.get("carries")) else 1,
+                abs(int(left.get("addend", 0)) - int(right.get("addend", 0))),
+                abs(int(left.get("augend", 0)) - int(right.get("augend", 0))),
             ),
-            metadata_keys=["template_id", "subject", "indirect_object", "pair_role"],
+            metadata_keys=["augend", "addend", "total", "carries", "pair_role"],
+            require_same_split=False,
         )
 
     def default_hook_names(self, config: Any) -> list[str]:
-        return default_residual_hook_targets(config.patch.max_layer)
+        return [resid_pre_hook_name(layer) for layer in range(config.patch.max_layer + 1)]

@@ -24,8 +24,8 @@ class DatasetConfig:
     """Dataset-related settings."""
 
     dataset_sizes: dict[str, int]
-    names: list[str]
-    templates: list[str]
+    names: list[str] = field(default_factory=list)
+    templates: list[str] = field(default_factory=list)
     shifted_name_count: int = 0
     shifted_template_count: int = 0
 
@@ -44,6 +44,7 @@ class PatchConfig:
     """Patching sweep settings."""
 
     max_layer: int = 0
+    position_mode: str = "all"
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,8 @@ def _validate_dataset_config(dataset: DatasetConfig) -> None:
     if dataset.dataset_sizes["standard"] <= 0 or dataset.dataset_sizes["shifted"] <= 0:
         raise ValueError("dataset_sizes values must be positive")
 
+
+def _validate_ioi_dataset_config(dataset: DatasetConfig) -> None:
     if len(dataset.names) < 4:
         raise ValueError("At least four names are required for IOI generation")
 
@@ -124,8 +127,6 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
             "device",
             "seed",
             "dataset_sizes",
-            "names",
-            "templates",
             "cache_hook_names",
             "max_layer",
             "output_dir",
@@ -134,19 +135,29 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
 
     dataset = DatasetConfig(
         dataset_sizes=dict(raw["dataset_sizes"]),
-        names=list(raw["names"]),
-        templates=list(raw["templates"]),
+        names=list(raw.get("names", [])),
+        templates=list(raw.get("templates", [])),
         shifted_name_count=int(raw.get("shifted_name_count", 2)),
         shifted_template_count=int(raw.get("shifted_template_count", 1)),
     )
     _validate_dataset_config(dataset)
+    if any(
+        key in raw
+        for key in ("names", "templates", "shifted_name_count", "shifted_template_count")
+    ):
+        _validate_ioi_dataset_config(dataset)
 
     cache = CacheConfig(
         cache_hook_names=list(raw.get("cache_hook_names", [])),
         stop_at_layer=raw.get("stop_at_layer"),
         cache_num_examples=int(raw.get("cache_num_examples", 4)),
     )
-    patch = PatchConfig(max_layer=int(raw["max_layer"]))
+    patch = PatchConfig(
+        max_layer=int(raw.get("max_layer", 0)),
+        position_mode=str(raw.get("patch_position_mode", "all")),
+    )
+    if patch.position_mode not in {"all", "final"}:
+        raise ValueError("patch_position_mode must be either 'all' or 'final'")
     output = OutputConfig(output_dir=str(raw["output_dir"]))
     compatibility_mode = CompatibilityModeConfig(**dict(raw.get("compatibility_mode", {})))
 
