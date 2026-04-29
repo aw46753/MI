@@ -1,7 +1,11 @@
 import pytest
 import torch
 
-from mechinterp.tasks.ioi.score import score_prompt_with_candidates, validate_single_token_candidate
+from mechinterp.tasks.ioi.score import (
+    find_invalid_single_token_candidates,
+    score_prompt_with_candidates,
+    validate_single_token_candidate,
+)
 
 
 class FakeScoringModel:
@@ -25,6 +29,12 @@ def test_single_token_validation_accepts_and_rejects() -> None:
     assert validate_single_token_candidate(model, " Mary") == 1
     with pytest.raises(ValueError):
         validate_single_token_candidate(model, " Mary Jane")
+
+
+def test_find_invalid_single_token_candidates_reports_all_invalid_names() -> None:
+    model = FakeScoringModel()
+    invalid = find_invalid_single_token_candidates(model, [" Mary", " Carla", " John", " Carla"])
+    assert invalid == [" Carla"]
 
 
 def test_scoring_output_shape_and_fields() -> None:

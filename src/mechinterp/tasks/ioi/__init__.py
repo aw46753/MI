@@ -9,7 +9,11 @@ from mechinterp.analysis.matched_pairs import build_matched_pairs_from_groups
 from mechinterp.tasks.base import Task
 from mechinterp.tasks.ioi.analysis import build_corrupted_prompt, build_matched_pairs, default_residual_hook_targets
 from mechinterp.tasks.ioi.data import IOIExample, build_ioi_dataset
-from mechinterp.tasks.ioi.score import IOIScoreResult, score_prompt_with_candidates
+from mechinterp.tasks.ioi.score import (
+    IOIScoreResult,
+    find_invalid_single_token_candidates,
+    score_prompt_with_candidates,
+)
 
 
 class IOITask(Task):
@@ -21,6 +25,17 @@ class IOITask(Task):
         return ["standard", "shifted"]
 
     def build_behavior_split(self, model: Any, split: str, config: Any) -> dict[str, Any]:
+        invalid_candidates = find_invalid_single_token_candidates(
+            model,
+            [f" {name}" for name in config.dataset.names],
+        )
+        if invalid_candidates:
+            invalid_names = ", ".join(repr(candidate.strip()) for candidate in invalid_candidates)
+            raise ValueError(
+                "IOI config contains names that are not single GPT-2 tokens: "
+                f"{invalid_names}. Update `names` in the config to use token-safe names."
+            )
+
         dataset = self.build_dataset(split, config)
         clean_results = [self.score_example(model, example) for example in dataset]
 

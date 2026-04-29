@@ -56,6 +56,38 @@ PROMPT_TEMPLATES: dict[str, PromptTemplate] = {
         ),
         object_phrase="drink",
     ),
+    "showed_object": PromptTemplate(
+        template_id="showed_object",
+        template=(
+            "When {subject} and {indirect_object} waited by the station, "
+            "{giver} showed the {object_phrase} to"
+        ),
+        object_phrase="map",
+    ),
+    "mailed_object": PromptTemplate(
+        template_id="mailed_object",
+        template=(
+            "After {subject} and {indirect_object} finished at work, "
+            "{giver} mailed the {object_phrase} to"
+        ),
+        object_phrase="letter",
+    ),
+    "read_object": PromptTemplate(
+        template_id="read_object",
+        template=(
+            "When {subject} and {indirect_object} rested in the library, "
+            "{giver} read the {object_phrase} to"
+        ),
+        object_phrase="story",
+    ),
+    "sent_object": PromptTemplate(
+        template_id="sent_object",
+        template=(
+            "After {subject} and {indirect_object} talked after dinner, "
+            "{giver} sent the {object_phrase} to"
+        ),
+        object_phrase="photo",
+    ),
 }
 
 

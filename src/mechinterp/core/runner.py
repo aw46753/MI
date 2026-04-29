@@ -9,12 +9,18 @@ from typing import Any
 
 from mechinterp.core.config import ExperimentConfig, load_config
 from mechinterp.tasks.addition import AdditionTask
+from mechinterp.tasks.bigvul import BigVulTask
+from mechinterp.tasks.greater_than import GreaterThanTask
 from mechinterp.tasks.ioi import IOITask
+from mechinterp.tasks.sva import SVATask
 
 
 TASK_REGISTRY = {
     "addition": AdditionTask(),
+    "bigvul": BigVulTask(),
+    "greater_than": GreaterThanTask(),
     "ioi": IOITask(),
+    "sva": SVATask(),
 }
 
 
@@ -48,6 +54,12 @@ def ensure_dir(path: str | Path) -> Path:
     path = Path(path)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def log_progress(message: str) -> None:
+    """Print a short progress update for long-running commands."""
+
+    print(message, flush=True)
 
 
 def write_json(path: str | Path, payload: Any) -> None:

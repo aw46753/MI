@@ -6,6 +6,9 @@ It currently includes:
 
 - `ioi`: synthetic Indirect Object Identification with activation patching
 - `addition`: synthetic two-digit addition with no-carry vs carry splits
+- `greater_than`: synthetic binary numeric comparison with easy vs small-gap splits
+- `sva`: synthetic subject-verb agreement with attractor interference splits
+- `bigvul`: paired vulnerable/patched C/C++ functions from Big-Vul for CWE-119 and CWE-20
 
 The implementation style follows the key TransformerLens demo primitives rather than building a notebook-only project:
 
@@ -79,6 +82,33 @@ python -m mechinterp.cli ablate addition
 python -m mechinterp.cli patch addition
 python -m mechinterp.cli plot addition
 python -m mechinterp.cli summarize addition
+
+python -m mechinterp.cli behavior greater_than
+python -m mechinterp.cli analyze greater_than
+python -m mechinterp.cli cache greater_than
+python -m mechinterp.cli probe greater_than
+python -m mechinterp.cli ablate greater_than
+python -m mechinterp.cli patch greater_than
+python -m mechinterp.cli plot greater_than
+python -m mechinterp.cli summarize greater_than
+
+python -m mechinterp.cli behavior sva
+python -m mechinterp.cli analyze sva
+python -m mechinterp.cli cache sva
+python -m mechinterp.cli probe sva
+python -m mechinterp.cli ablate sva
+python -m mechinterp.cli patch sva
+python -m mechinterp.cli plot sva
+python -m mechinterp.cli summarize sva
+
+python -m mechinterp.cli behavior bigvul
+python -m mechinterp.cli analyze bigvul
+python -m mechinterp.cli cache bigvul
+python -m mechinterp.cli probe bigvul
+python -m mechinterp.cli ablate bigvul
+python -m mechinterp.cli patch bigvul
+python -m mechinterp.cli plot bigvul
+python -m mechinterp.cli summarize bigvul
 ```
 
 These default to `configs/<task>_small.yaml`. You can still override the config explicitly:
@@ -113,7 +143,41 @@ Outputs are written under `outputs/{task}/{run_name}/...`, for example:
 ```text
 outputs/ioi/ioi_small/
 outputs/addition/addition_small/
+outputs/greater_than/greater_than_small/
+outputs/sva/sva_small/
+outputs/bigvul/bigvul_small/
 ```
+
+## Big-Vul Data Setup
+
+`bigvul` expects a local cleaned dataset under `data/bigvul/raw/` in `.jsonl`, `.json`, or `.csv` format. The current pipeline expects actual function pairs rather than commit ids alone.
+
+Each usable record should contain:
+
+- `sample_id`
+- `commit_id`
+- `cwe_id`
+- `func_before`
+- `func_after`
+
+Optional metadata fields that are preserved when present:
+
+- `project`
+- `file_path`
+- `function_name`
+- `cve_id`
+- `commit_message`
+
+The preprocessing pipeline:
+
+- filters to `CWE-119` and `CWE-20`
+- drops rows missing either function body
+- normalizes CWE labels such as `119` to `CWE-119`
+- deduplicates by stable sample id
+- samples a fixed number of pairs per CWE using the config seed
+- writes processed artifacts to `data/bigvul/processed/`
+
+The checked-in config at `configs/bigvul_small.yaml` expects `100` usable pairs for each target CWE. For smaller validation files, lower `pairs_per_cwe` in an override config.
 
 ## FPR / FNR Analysis
 
@@ -138,6 +202,9 @@ for the full task and separately by subgroup:
 
 - IOI: `standard` vs `shifted`
 - Addition: `standard` (no carry) vs `shifted` (carry)
+- Greater-than: `standard` (large gap) vs `shifted` (small gap)
+- SVA: `standard` (no attractor) vs `shifted` (opposite-number attractor)
+- Big-Vul: `cwe_119` vs `cwe_20`
 
 ## Interpretability Workflows
 
@@ -163,6 +230,40 @@ python -m mechinterp.cli patch addition
 python -m mechinterp.cli plot addition
 ```
 
+and
+
+```bash
+python -m mechinterp.cli behavior greater_than
+python -m mechinterp.cli analyze greater_than
+python -m mechinterp.cli probe greater_than
+python -m mechinterp.cli ablate greater_than
+python -m mechinterp.cli patch greater_than
+python -m mechinterp.cli plot greater_than
+```
+
+and
+
+```bash
+python -m mechinterp.cli behavior sva
+python -m mechinterp.cli analyze sva
+python -m mechinterp.cli probe sva
+python -m mechinterp.cli ablate sva
+python -m mechinterp.cli patch sva
+python -m mechinterp.cli plot sva
+```
+
+and
+
+```bash
+python -m mechinterp.cli behavior bigvul
+python -m mechinterp.cli analyze bigvul
+python -m mechinterp.cli cache bigvul
+python -m mechinterp.cli probe bigvul
+python -m mechinterp.cli ablate bigvul
+python -m mechinterp.cli patch bigvul
+python -m mechinterp.cli plot bigvul
+```
+
 The intended interpretation is:
 
 - `analyze`: identify where the model is overpredicting positives (`FP`) or missing positives (`FN`)
@@ -175,6 +276,16 @@ The ablation plots follow the TransformerLens demo notebook pattern for interven
 - interactive Plotly heatmaps
 - zero-centered diverging color scale
 - layer on the y-axis and head / bucket on the x-axis
+
+For `bigvul`, `behavior` uses a simple GPT-2 prompt of the form:
+
+- instruction: `You are a software security expert.`
+- question: `Is the following C/C++ function vulnerable to <CWE>?`
+- answer constraint: `Answer only Yes or No.`
+- code block containing `func_before` or `func_after`
+- final-token scoring between the candidates ` yes` and ` no`
+
+This lets the same cache / probe / ablation / patching pipeline run over Big-Vul prompts, although pair counts for patching may be smaller when token lengths differ across matched examples.
 
 ## Adding a New Task Later
 

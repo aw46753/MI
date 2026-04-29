@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from mechinterp.analysis.error_buckets import analyze_error_buckets, compare_bucket_pair
 from mechinterp.core.model import ModelWrapper
-from mechinterp.core.runner import ensure_dir, get_task, load_experiment_config, run_dir, write_csv, write_json
+from mechinterp.core.runner import ensure_dir, get_task, load_experiment_config, log_progress, run_dir, write_csv, write_json
 from mechinterp.evaluation.metrics import annotate_prediction_rows, confusion_metrics
 
 
@@ -13,13 +13,15 @@ def run(task_name: str, config_path: str) -> dict:
 
     config = load_experiment_config(config_path)
     task = get_task(task_name)
-    model = ModelWrapper(config)
+    log_progress(f"[behavior] task={task_name} loading model and scoring splits")
+    model = ModelWrapper(config) if task.requires_model() else None
 
     primary_rows_all: list[dict] = []
     all_rows: list[dict] = []
     splits_payload: dict[str, dict] = {}
 
     for split in task.split_names(config):
+        log_progress(f"[behavior] scoring split={split}")
         behavior_split = task.build_behavior_split(model, split, config)
         primary_rows = annotate_prediction_rows(list(behavior_split["primary_rows"]))
         split_all_rows = annotate_prediction_rows(list(behavior_split["all_rows"]))
@@ -50,6 +52,7 @@ def run(task_name: str, config_path: str) -> dict:
                 "fn_vs_tp": compare_bucket_pair(split_all_rows, "FN", "TP"),
             },
         }
+        log_progress(f"[behavior] finished split={split} examples={len(split_all_rows)}")
 
     behavior_dir = ensure_dir(run_dir(config, config_path, task_name=task_name) / "behavior")
     write_csv(behavior_dir / "results.csv", all_rows)
@@ -64,4 +67,5 @@ def run(task_name: str, config_path: str) -> dict:
         "splits": splits_payload,
     }
     write_json(behavior_dir / "results.json", payload)
+    log_progress(f"[behavior] wrote {behavior_dir / 'results.json'}")
     return payload

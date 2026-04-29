@@ -1,0 +1,25 @@
+{
+  "dataset_path": "data/bigvul/raw",
+  "processed_dir": "data/bigvul/processed",
+  "seed": 11,
+  "target_cwes": [
+    "CWE-119",
+    "CWE-20"
+  ],
+  "pairs_per_cwe": 100,
+  "raw_record_count": 895,
+  "filtered_missing_required_count": 0,
+  "normalized_count": 895,
+  "counts_by_cwe": {
+    "CWE-119": 624,
+    "CWE-20": 271
+  },
+  "selected_counts": {
+    "CWE-119": 100,
+    "CWE-20": 100
+  },
+  "pair_files": {
+    "cwe_119": "data/bigvul/processed/cwe_119_pairs.jsonl",
+    "cwe_20": "data/bigvul/processed/cwe_20_pairs.jsonl"
+  }
+}

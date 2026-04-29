@@ -23,7 +23,11 @@ class CompatibilityModeConfig:
 class DatasetConfig:
     """Dataset-related settings."""
 
-    dataset_sizes: dict[str, int]
+    dataset_sizes: dict[str, int] = field(default_factory=dict)
+    dataset_path: str | None = None
+    target_cwes: list[str] = field(default_factory=list)
+    pairs_per_cwe: int | None = None
+    split_mode: str = "standard_shifted"
     names: list[str] = field(default_factory=list)
     templates: list[str] = field(default_factory=list)
     shifted_name_count: int = 0
@@ -44,7 +48,8 @@ class PatchConfig:
     """Patching sweep settings."""
 
     max_layer: int = 0
-    position_mode: str = "all"
+    position_mode: str = "final"
+    max_pairs: int | None = None
 
 
 @dataclass(frozen=True)
@@ -80,8 +85,14 @@ def _require_keys(data: dict[str, Any], keys: list[str]) -> None:
 
 
 def _validate_dataset_config(dataset: DatasetConfig) -> None:
-    if not dataset.dataset_sizes:
-        raise ValueError("dataset_sizes must not be empty")
+    if dataset.target_cwes:
+        if not dataset.dataset_path:
+            raise ValueError("dataset_path is required for Big-Vul datasets")
+        if dataset.pairs_per_cwe is None or dataset.pairs_per_cwe <= 0:
+            raise ValueError("pairs_per_cwe must be a positive integer")
+        if dataset.split_mode != "by_cwe":
+            raise ValueError("split_mode must be 'by_cwe' for Big-Vul datasets")
+        return
 
     if "standard" not in dataset.dataset_sizes or "shifted" not in dataset.dataset_sizes:
         raise ValueError("dataset_sizes must define both 'standard' and 'shifted'")
@@ -126,7 +137,6 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
             "model_name",
             "device",
             "seed",
-            "dataset_sizes",
             "cache_hook_names",
             "max_layer",
             "output_dir",
@@ -134,7 +144,11 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
     )
 
     dataset = DatasetConfig(
-        dataset_sizes=dict(raw["dataset_sizes"]),
+        dataset_sizes=dict(raw.get("dataset_sizes", {})),
+        dataset_path=raw.get("dataset_path"),
+        target_cwes=list(raw.get("target_cwes", [])),
+        pairs_per_cwe=int(raw["pairs_per_cwe"]) if raw.get("pairs_per_cwe") is not None else None,
+        split_mode=str(raw.get("split_mode", "standard_shifted")),
         names=list(raw.get("names", [])),
         templates=list(raw.get("templates", [])),
         shifted_name_count=int(raw.get("shifted_name_count", 2)),
@@ -154,10 +168,13 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
     )
     patch = PatchConfig(
         max_layer=int(raw.get("max_layer", 0)),
-        position_mode=str(raw.get("patch_position_mode", "all")),
+        position_mode=str(raw.get("patch_position_mode", "final")),
+        max_pairs=int(raw["patch_max_pairs"]) if raw.get("patch_max_pairs") is not None else None,
     )
     if patch.position_mode not in {"all", "final"}:
         raise ValueError("patch_position_mode must be either 'all' or 'final'")
+    if patch.max_pairs is not None and patch.max_pairs <= 0:
+        raise ValueError("patch_max_pairs must be a positive integer when provided")
     output = OutputConfig(output_dir=str(raw["output_dir"]))
     compatibility_mode = CompatibilityModeConfig(**dict(raw.get("compatibility_mode", {})))
 

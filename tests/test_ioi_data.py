@@ -18,7 +18,7 @@ def make_config() -> ExperimentConfig:
             dataset_sizes={"standard": 6, "shifted": 4},
             names=["Alice", "Mary", "John", "James", "Laura", "Sarah"],
             templates=["gave_object", "handed_object", "brought_object"],
-            shifted_name_count=2,
+            shifted_name_count=3,
             shifted_template_count=1,
         ),
         cache=CacheConfig(cache_hook_names=["hook_resid_pre"], stop_at_layer=4, cache_num_examples=2),

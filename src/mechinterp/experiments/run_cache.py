@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from mechinterp.core.cache import build_names_filter, compact_cache, save_activation_artifacts, select_records
 from mechinterp.core.model import ModelWrapper
-from mechinterp.core.runner import get_task, load_experiment_config, read_json, run_dir
+from mechinterp.core.runner import get_task, load_experiment_config, log_progress, read_json, run_dir
 from mechinterp.experiments.run_behavior import run as run_behavior
 
 
@@ -12,7 +12,9 @@ def run(task_name: str, config_path: str) -> dict:
     """Cache selected activations for scored examples."""
 
     config = load_experiment_config(config_path)
-    get_task(task_name)
+    task = get_task(task_name)
+    if not task.supports_cache():
+        raise ValueError(f"Caching is not implemented for task '{task_name}' yet.")
 
     behavior_path = run_dir(config, config_path, task_name=task_name) / "behavior" / "results.json"
     if behavior_path.exists():
@@ -23,11 +25,13 @@ def run(task_name: str, config_path: str) -> dict:
     records = select_records(list(behavior_payload["all_results"]), config.cache.cache_num_examples)
     names_filter = build_names_filter(config.cache.cache_hook_names)
     model = ModelWrapper(config)
+    log_progress(f"[cache] task={task_name} selected_examples={len(records)}")
 
     activations: dict[str, dict] = {}
     selected_metadata: list[dict] = []
 
     for index, row in enumerate(records):
+        log_progress(f"[cache] caching example {index + 1}/{len(records)} split={row['split']}")
         prompt = row["prompt"]
         _, cache = model.run_with_cache(
             prompt,
@@ -62,4 +66,5 @@ def run(task_name: str, config_path: str) -> dict:
         activations=activations,
         metadata=metadata,
     )
+    log_progress(f"[cache] wrote {cache_dir / 'metadata.json'}")
     return metadata

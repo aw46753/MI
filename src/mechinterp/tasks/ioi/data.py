@@ -71,12 +71,24 @@ def build_ioi_dataset(split: str, config: ExperimentConfig) -> list[IOIExample]:
     if len(template_pool) < 1:
         raise ValueError(f"Split '{split}' must have at least one template")
 
-    rng = random.Random(f"{config.seed}:{split}")
-    examples: list[IOIExample] = []
+    candidates: list[tuple[str, str, str]] = []
+    for template_id in template_pool:
+        for subject in name_pool:
+            for indirect_object in name_pool:
+                if subject == indirect_object:
+                    continue
+                candidates.append((template_id, subject, indirect_object))
 
-    for _ in range(size):
-        subject, indirect_object = rng.sample(name_pool, 2)
-        template_id = rng.choice(template_pool)
+    if size > len(candidates):
+        raise ValueError(
+            f"Requested {size} examples for split '{split}', but only {len(candidates)} unique combinations are available"
+        )
+
+    rng = random.Random(f"{config.seed}:{split}")
+    rng.shuffle(candidates)
+
+    examples: list[IOIExample] = []
+    for template_id, subject, indirect_object in candidates[:size]:
         prompt = render_ioi_prompt(template_id, subject=subject, indirect_object=indirect_object)
         examples.append(
             IOIExample(

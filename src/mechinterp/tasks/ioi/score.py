@@ -47,6 +47,22 @@ def validate_single_token_candidate(model: Any, candidate: str) -> int:
         ) from exc
 
 
+def find_invalid_single_token_candidates(model: Any, candidates: list[str]) -> list[str]:
+    """Return the subset of candidate strings that are not single tokens."""
+
+    invalid: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        try:
+            validate_single_token_candidate(model, candidate)
+        except ValueError:
+            invalid.append(candidate)
+    return invalid
+
+
 def score_prompt_with_candidates(
     model: Any,
     prompt: str,

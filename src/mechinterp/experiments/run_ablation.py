@@ -14,7 +14,7 @@ from mechinterp.analysis.ablation import (
 )
 from mechinterp.core.metrics import final_token_logit_diff
 from mechinterp.core.model import ModelWrapper
-from mechinterp.core.runner import ensure_dir, load_experiment_config, read_json, run_dir, write_csv, write_json
+from mechinterp.core.runner import ensure_dir, get_task, load_experiment_config, log_progress, read_json, run_dir, write_csv, write_json
 from mechinterp.evaluation.metrics import annotate_prediction_rows, bucket_rows
 from mechinterp.experiments.run_behavior import run as run_behavior
 from mechinterp.tasks.ioi.score import validate_single_token_candidate
@@ -32,6 +32,9 @@ def run(task_name: str, config_path: str) -> dict[str, Any]:
     """Run attention-head and MLP ablations on sampled examples."""
 
     config = load_experiment_config(config_path)
+    task = get_task(task_name)
+    if not task.supports_ablation():
+        raise ValueError(f"Ablation is not implemented for task '{task_name}' yet.")
     behavior_path = run_dir(config, config_path, task_name=task_name) / "behavior" / "results.json"
     if behavior_path.exists():
         behavior_payload = read_json(behavior_path)
@@ -43,9 +46,13 @@ def run(task_name: str, config_path: str) -> dict[str, Any]:
     model = ModelWrapper(config)
     num_layers = int(model.model.cfg.n_layers)
     num_heads = int(getattr(model.model.cfg, "n_heads", 0))
+    log_progress(
+        f"[ablate] task={task_name} examples={len(sampled_rows)} layers={num_layers} heads={num_heads}"
+    )
 
     records: list[dict[str, Any]] = []
-    for row in sampled_rows:
+    for index, row in enumerate(sampled_rows, start=1):
+        log_progress(f"[ablate] example {index}/{len(sampled_rows)} split={row['split']} error={row['error_type']}")
         correct_token_id = validate_single_token_candidate(model, row["correct_token"])
         wrong_token_id = validate_single_token_candidate(model, row["wrong_token"])
         base_margin = float(row["margin"])
@@ -110,4 +117,5 @@ def run(task_name: str, config_path: str) -> dict[str, Any]:
     ablation_dir = ensure_dir(run_dir(config, config_path, task_name=task_name) / "ablation")
     write_csv(ablation_dir / "results.csv", records)
     write_json(ablation_dir / "results.json", payload)
+    log_progress(f"[ablate] wrote {ablation_dir / 'results.json'}")
     return payload

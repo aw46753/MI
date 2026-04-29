@@ -3,24 +3,39 @@ device: cpu
 seed: 0
 
 dataset_sizes:
-  standard: 16
-  shifted: 8
+  standard: 100
+  shifted: 100
 
 names:
   - Alice
   - Anna
+  - Brian
+  - Carol
   - Claire
+  - David
   - Daniel
   - Emily
+  - Ethan
+  - Fiona
+  - Grace
+  - Henry
   - James
+  - Julia
   - John
+  - Kevin
   - Laura
   - Mary
   - Michael
+  - Natalie
+  - Oliver
+  - Peter
   - Robert
   - Sarah
+  - Sophia
   - Thomas
+  - Victor
   - William
+  - Zoe
 
 templates:
   - gave_object
@@ -28,14 +43,15 @@ templates:
   - brought_object
   - passed_object
 
-shifted_name_count: 4
-shifted_template_count: 1
+shifted_name_count: 8
+shifted_template_count: 2
 
 cache_hook_names:
   - hook_resid_pre
 stop_at_layer: 10
 max_layer: 10
-patch_position_mode: all
+patch_position_mode: final
+patch_max_pairs: 24
 cache_num_examples: 4
 output_dir: outputs
 

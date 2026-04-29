@@ -1,0 +1,17 @@
+model_name: gpt2
+device: cpu
+seed: 11
+dataset_path: data/bigvul/raw
+target_cwes:
+  - CWE-119
+  - CWE-20
+pairs_per_cwe: 100
+split_mode: by_cwe
+cache_hook_names:
+  - hook_resid_pre
+stop_at_layer: 10
+max_layer: 10
+patch_position_mode: final
+patch_max_pairs: 24
+cache_num_examples: 2
+output_dir: outputs

@@ -48,3 +48,23 @@ class Task(ABC):
     def supports_patching(self) -> bool:
         """Return whether the task supports activation patching."""
         return True
+
+    def requires_model(self) -> bool:
+        """Return whether behavior scoring requires loading a model."""
+        return True
+
+    def supports_cache(self) -> bool:
+        """Return whether the task supports activation caching."""
+        return True
+
+    def supports_analysis(self) -> bool:
+        """Return whether the task supports error-pair analysis."""
+        return True
+
+    def supports_probes(self) -> bool:
+        """Return whether the task supports layerwise probes."""
+        return True
+
+    def supports_ablation(self) -> bool:
+        """Return whether the task supports ablations."""
+        return True

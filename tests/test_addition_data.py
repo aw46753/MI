@@ -41,3 +41,10 @@ def test_addition_examples_include_off_by_one_corruption() -> None:
     assert example.wrong_token == f" {example.total - 1}"
     assert f"{example.augend} + {example.addend}" in example.prompt
     assert f"{example.augend - 1} + {example.addend}" in example.corrupted_prompt
+
+
+def test_addition_prompts_show_template_variety() -> None:
+    config = make_config()
+    examples = build_addition_dataset("standard", config)
+
+    assert len({example.template_id for example in examples}) > 1

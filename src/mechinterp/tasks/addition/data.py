@@ -9,6 +9,14 @@ from typing import Any
 from mechinterp.core.config import ExperimentConfig
 
 
+ADDITION_PROMPT_TEMPLATES = (
+    "Question: What is {augend} + {addend}?\nAnswer:",
+    "Compute {augend} + {addend}.\nAnswer:",
+    "Solve: {augend} + {addend}\nAnswer:",
+    "Arithmetic check: {augend} + {addend}\nAnswer:",
+)
+
+
 @dataclass(frozen=True)
 class AdditionExample:
     """One synthetic two-digit addition prompt."""
@@ -22,16 +30,17 @@ class AdditionExample:
     total: int
     split: str
     carries: bool
+    template_id: str
 
     def to_dict(self) -> dict[str, Any]:
         """Return a serializable representation."""
         return asdict(self)
 
 
-def render_addition_prompt(augend: int, addend: int) -> str:
+def render_addition_prompt(augend: int, addend: int, *, template_id: int = 0) -> str:
     """Render a plain addition prompt."""
 
-    return f"Question: What is {augend} + {addend}?\nAnswer:"
+    return ADDITION_PROMPT_TEMPLATES[template_id].format(augend=augend, addend=addend)
 
 
 def _is_valid_candidate(augend: int, addend: int, *, carries: bool) -> bool:
@@ -74,10 +83,11 @@ def build_addition_dataset(split: str, config: ExperimentConfig) -> list[Additio
     examples: list[AdditionExample] = []
     for augend, addend in candidate_pairs[:size]:
         total = augend + addend
+        template_id = rng.randrange(len(ADDITION_PROMPT_TEMPLATES))
         examples.append(
             AdditionExample(
-                prompt=render_addition_prompt(augend, addend),
-                corrupted_prompt=render_addition_prompt(augend - 1, addend),
+                prompt=render_addition_prompt(augend, addend, template_id=template_id),
+                corrupted_prompt=render_addition_prompt(augend - 1, addend, template_id=template_id),
                 correct_token=f" {total}",
                 wrong_token=f" {total - 1}",
                 augend=augend,
@@ -85,6 +95,7 @@ def build_addition_dataset(split: str, config: ExperimentConfig) -> list[Additio
                 total=total,
                 split=split,
                 carries=carries,
+                template_id=f"template_{template_id}",
             )
         )
 
