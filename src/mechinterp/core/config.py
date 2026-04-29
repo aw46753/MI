@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -188,3 +189,11 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
         output=output,
         compatibility_mode=compatibility_mode,
     )
+
+
+def override_device(config: ExperimentConfig, device: str | None) -> ExperimentConfig:
+    """Return a copy of the config with a runtime device override applied."""
+
+    if device is None:
+        return config
+    return replace(config, device=str(device))

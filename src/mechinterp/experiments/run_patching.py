@@ -107,10 +107,10 @@ def _aggregate_patch_rows(rows: list[dict]) -> dict:
     }
 
 
-def run(task_name: str, config_path: str) -> dict:
+def run(task_name: str, config_path: str, *, device: str | None = None) -> dict:
     """Run residual-stream patching over matched error pairs."""
 
-    config = load_experiment_config(config_path)
+    config = load_experiment_config(config_path, device=device)
     task = get_task(task_name)
     if not task.supports_patching():
         raise ValueError(f"Patching is not implemented for task '{task_name}' yet.")
@@ -122,7 +122,7 @@ def run(task_name: str, config_path: str) -> dict:
     if behavior_path.exists():
         behavior_payload = read_json(behavior_path)
     else:
-        behavior_payload = run_behavior(task_name, config_path)
+        behavior_payload = run_behavior(task_name, config_path, device=device)
 
     behavior_rows = annotate_prediction_rows(list(behavior_payload["all_results"]))
     rows: list[dict] = []

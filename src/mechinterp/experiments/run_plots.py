@@ -17,16 +17,16 @@ from mechinterp.plots.generate import (
 )
 
 
-def run(task_name: str, config_path: str) -> dict[str, str]:
+def run(task_name: str, config_path: str, *, device: str | None = None) -> dict[str, str]:
     """Generate plots from saved experiment outputs."""
 
-    config = load_experiment_config(config_path)
+    config = load_experiment_config(config_path, device=device)
     root = run_dir(config, config_path, task_name=task_name)
     behavior_path = root / "behavior" / "results.json"
     if behavior_path.exists():
         behavior_payload = read_json(behavior_path)
     else:
-        behavior_payload = run_behavior(task_name, config_path)
+        behavior_payload = run_behavior(task_name, config_path, device=device)
 
     plot_dir = ensure_dir(root / "plots")
     outputs: dict[str, str] = {}

@@ -44,6 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
         subparser.add_argument("config", nargs="?")
         subparser.add_argument("--task", dest="task_flag")
         subparser.add_argument("--config", dest="config_flag")
+        subparser.add_argument("--device")
 
     return parser
 
@@ -59,21 +60,21 @@ def main() -> None:
         parser.error(str(exc))
 
     if args.command == "behavior":
-        run_behavior(task, config)
+        run_behavior(task, config, device=args.device)
     elif args.command == "cache":
-        run_cache(task, config)
+        run_cache(task, config, device=args.device)
     elif args.command == "analyze":
-        run_analyze(task, config)
+        run_analyze(task, config, device=args.device)
     elif args.command == "probe":
-        run_probe(task, config)
+        run_probe(task, config, device=args.device)
     elif args.command == "ablate":
-        run_ablation(task, config)
+        run_ablation(task, config, device=args.device)
     elif args.command == "patch":
-        run_patch(task, config)
+        run_patch(task, config, device=args.device)
     elif args.command == "plot":
-        run_plot(task, config)
+        run_plot(task, config, device=args.device)
     elif args.command == "summarize":
-        run_summarize(task, config)
+        run_summarize(task, config, device=args.device)
     else:
         parser.error(f"Unknown command: {args.command}")
 

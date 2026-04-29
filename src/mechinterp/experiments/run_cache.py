@@ -8,10 +8,10 @@ from mechinterp.core.runner import get_task, load_experiment_config, log_progres
 from mechinterp.experiments.run_behavior import run as run_behavior
 
 
-def run(task_name: str, config_path: str) -> dict:
+def run(task_name: str, config_path: str, *, device: str | None = None) -> dict:
     """Cache selected activations for scored examples."""
 
-    config = load_experiment_config(config_path)
+    config = load_experiment_config(config_path, device=device)
     task = get_task(task_name)
     if not task.supports_cache():
         raise ValueError(f"Caching is not implemented for task '{task_name}' yet.")
@@ -20,7 +20,7 @@ def run(task_name: str, config_path: str) -> dict:
     if behavior_path.exists():
         behavior_payload = read_json(behavior_path)
     else:
-        behavior_payload = run_behavior(task_name, config_path)
+        behavior_payload = run_behavior(task_name, config_path, device=device)
 
     records = select_records(list(behavior_payload["all_results"]), config.cache.cache_num_examples)
     names_filter = build_names_filter(config.cache.cache_hook_names)

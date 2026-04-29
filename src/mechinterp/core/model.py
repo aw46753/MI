@@ -22,6 +22,35 @@ def _import_transformer_bridge() -> Any:
     return TransformerBridge
 
 
+def resolve_device(requested_device: str) -> str:
+    """Validate a requested runtime device and return the normalized value."""
+
+    device = requested_device.strip()
+    if not device:
+        raise ValueError("Device must be a non-empty string.")
+
+    if device == "cpu":
+        return device
+
+    if device == "cuda" or device.startswith("cuda:"):
+        try:
+            import torch
+        except ImportError as exc:
+            raise RuntimeError("PyTorch is required to validate CUDA device availability.") from exc
+
+        if not torch.cuda.is_available():
+            raise RuntimeError(
+                "CUDA device requested but CUDA is not available. "
+                "Check that your runtime exposes an NVIDIA GPU, the NVIDIA driver is installed, "
+                "and your PyTorch CUDA build matches the system CUDA stack."
+            )
+        return device
+
+    raise ValueError(
+        f"Unsupported device {device!r}. Expected 'cpu', 'cuda', or a device like 'cuda:0'."
+    )
+
+
 @dataclass
 class ModelWrapper:
     """Thin wrapper around TransformerBridge used by tasks and experiments."""
@@ -37,6 +66,7 @@ class ModelWrapper:
 
         TransformerBridge = _import_transformer_bridge()
         model = TransformerBridge.boot_transformers(self.config.model_name)
+        resolved_device = resolve_device(self.config.device)
 
         try:
             model.enable_compatibility_mode(**self.config.compatibility_mode.__dict__)
@@ -44,9 +74,9 @@ class ModelWrapper:
             pass
 
         try:
-            model.to(self.config.device, print_details=False)
+            model.to(resolved_device, print_details=False)
         except TypeError:
-            model.to(self.config.device)
+            model.to(resolved_device)
         except AttributeError:
             pass
 

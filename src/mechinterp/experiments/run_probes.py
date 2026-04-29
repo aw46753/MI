@@ -13,10 +13,10 @@ from mechinterp.evaluation.metrics import annotate_prediction_rows
 from mechinterp.experiments.run_behavior import run as run_behavior
 
 
-def run(task_name: str, config_path: str) -> dict[str, Any]:
+def run(task_name: str, config_path: str, *, device: str | None = None) -> dict[str, Any]:
     """Extract hidden states and fit linear probes per layer."""
 
-    config = load_experiment_config(config_path)
+    config = load_experiment_config(config_path, device=device)
     task = get_task(task_name)
     if not task.supports_probes():
         raise ValueError(f"Probe experiments are not implemented for task '{task_name}' yet.")
@@ -24,7 +24,7 @@ def run(task_name: str, config_path: str) -> dict[str, Any]:
     if behavior_path.exists():
         behavior_payload = read_json(behavior_path)
     else:
-        behavior_payload = run_behavior(task_name, config_path)
+        behavior_payload = run_behavior(task_name, config_path, device=device)
 
     rows = annotate_prediction_rows(list(behavior_payload["all_results"]))
     model = ModelWrapper(config)

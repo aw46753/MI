@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from mechinterp.core.config import ExperimentConfig, load_config
+from mechinterp.core.config import ExperimentConfig, load_config, override_device
 from mechinterp.tasks.addition import AdditionTask
 from mechinterp.tasks.bigvul import BigVulTask
 from mechinterp.tasks.greater_than import GreaterThanTask
@@ -32,11 +32,11 @@ def get_task(task_name: str) -> Any:
         raise ValueError(f"Unknown task '{task_name}'. Available tasks: {sorted(TASK_REGISTRY)}") from exc
 
 
-def load_experiment_config(config_path: str) -> ExperimentConfig:
+def load_experiment_config(config_path: str, *, device: str | None = None) -> ExperimentConfig:
     """Load YAML config and attach a stable run name based on file stem."""
 
     config = load_config(config_path)
-    return config
+    return override_device(config, device)
 
 
 def run_dir(config: ExperimentConfig, config_path: str, *, task_name: str | None = None) -> Path:

@@ -8,10 +8,10 @@ from mechinterp.core.runner import ensure_dir, get_task, load_experiment_config,
 from mechinterp.evaluation.metrics import annotate_prediction_rows, confusion_metrics
 
 
-def run(task_name: str, config_path: str) -> dict:
+def run(task_name: str, config_path: str, *, device: str | None = None) -> dict:
     """Run behavior scoring for a task."""
 
-    config = load_experiment_config(config_path)
+    config = load_experiment_config(config_path, device=device)
     task = get_task(task_name)
     log_progress(f"[behavior] task={task_name} loading model and scoring splits")
     model = ModelWrapper(config) if task.requires_model() else None

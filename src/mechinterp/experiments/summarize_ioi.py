@@ -8,10 +8,10 @@ from statistics import mean
 from mechinterp.core.runner import load_experiment_config, read_json, run_dir
 
 
-def run(task_name: str, config_path: str) -> str:
+def run(task_name: str, config_path: str, *, device: str | None = None) -> str:
     """Summarize saved behavior and patch outputs."""
 
-    config = load_experiment_config(config_path)
+    config = load_experiment_config(config_path, device=device)
     root = run_dir(config, config_path, task_name=task_name)
     behavior_payload = read_json(root / "behavior" / "results.json")
 

@@ -140,8 +140,12 @@ def plot_patching_heatmap(aggregate: dict[str, Any], output_path: Path) -> None:
     matrix = aggregate.get("mean_normalized_effect", [])
     if not matrix:
         return
+    numeric_matrix = [
+        [float(value) if value is not None else float("nan") for value in row]
+        for row in matrix
+    ]
     fig, ax = plt.subplots(figsize=(8, 4))
-    image = ax.imshow(matrix, cmap="viridis", aspect="auto")
+    image = ax.imshow(numeric_matrix, cmap="viridis", aspect="auto")
     ax.set_title("Activation Patching Heatmap")
     ax.set_xlabel("Position")
     ax.set_ylabel("Layer")

@@ -45,10 +45,10 @@ def _activation_difference_summary(model: Any, pairs: list[Any]) -> dict[str, An
     }
 
 
-def run(task_name: str, config_path: str) -> dict[str, Any]:
+def run(task_name: str, config_path: str, *, device: str | None = None) -> dict[str, Any]:
     """Run error bucket and matched-pair analysis."""
 
-    config = load_experiment_config(config_path)
+    config = load_experiment_config(config_path, device=device)
     task = get_task(task_name)
     if not task.supports_analysis():
         raise ValueError(f"Analysis is not implemented for task '{task_name}' yet.")
@@ -56,7 +56,7 @@ def run(task_name: str, config_path: str) -> dict[str, Any]:
     if behavior_path.exists():
         behavior_payload = read_json(behavior_path)
     else:
-        behavior_payload = run_behavior(task_name, config_path)
+        behavior_payload = run_behavior(task_name, config_path, device=device)
 
     rows = annotate_prediction_rows(list(behavior_payload["all_results"]))
     model = ModelWrapper(config)

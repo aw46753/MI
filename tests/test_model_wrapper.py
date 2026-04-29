@@ -1,5 +1,6 @@
 import pytest
 import torch
+from dataclasses import replace
 
 from mechinterp.core.config import (
     CacheConfig,
@@ -9,7 +10,7 @@ from mechinterp.core.config import (
     OutputConfig,
     PatchConfig,
 )
-from mechinterp.core.model import ModelWrapper
+from mechinterp.core.model import ModelWrapper, resolve_device
 
 
 class FakeBridgeModel:
@@ -92,3 +93,22 @@ def test_model_wrapper_boot_and_tokenization(monkeypatch: pytest.MonkeyPatch) ->
     assert logits.shape == (1, 3, 4)
     assert "blocks.0.hook_resid_pre" in cache
     assert hooked_logits.shape == (1, 3, 4)
+
+
+def test_model_wrapper_uses_explicit_cuda_device(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("mechinterp.core.model._import_transformer_bridge", lambda: FakeTransformerBridge)
+    monkeypatch.setattr("mechinterp.core.model.resolve_device", lambda device: device)
+
+    config = replace(make_config(), device="cuda:0")
+    wrapper = ModelWrapper(config)
+
+    model = wrapper.load()
+
+    assert model.device == "cuda:0"
+
+
+def test_resolve_device_rejects_unavailable_cuda(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    with pytest.raises(RuntimeError, match="CUDA device requested but CUDA is not available"):
+        resolve_device("cuda")

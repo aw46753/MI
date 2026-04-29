@@ -60,12 +60,15 @@ pip install -e '.[dev]'
 
 On Linux, the default PyPI `torch` wheel may pull large CUDA dependencies. If you want a smaller CPU-only setup, install PyTorch from the official selector first, then install this repo with `--no-deps`.
 
+This environment currently has a CUDA build of PyTorch installed (`torch 2.11.0+cu126`). If your shell/runtime exposes an NVIDIA GPU, you can run the experiments on GPU by passing a device override at the CLI.
+
 ## CLI Usage
 
 Run the CLI via the package module:
 
 ```bash
 python -m mechinterp.cli behavior ioi
+python -m mechinterp.cli behavior ioi --device cuda
 python -m mechinterp.cli analyze ioi
 python -m mechinterp.cli cache ioi
 python -m mechinterp.cli probe ioi
@@ -102,6 +105,7 @@ python -m mechinterp.cli plot sva
 python -m mechinterp.cli summarize sva
 
 python -m mechinterp.cli behavior bigvul
+python -m mechinterp.cli patch bigvul --device cuda:0
 python -m mechinterp.cli analyze bigvul
 python -m mechinterp.cli cache bigvul
 python -m mechinterp.cli probe bigvul
@@ -116,13 +120,87 @@ These default to `configs/<task>_small.yaml`. You can still override the config 
 ```bash
 python -m mechinterp.cli behavior ioi configs/ioi_small.yaml
 python -m mechinterp.cli behavior --task ioi --config configs/ioi_small.yaml
+python -m mechinterp.cli behavior ioi configs/ioi_small.yaml --device cuda
 ```
 
 You can also use the console script after installation:
 
 ```bash
 mechinterp behavior ioi
+mechinterp behavior ioi --device cuda
 ```
+
+The YAML `device` field still works, but `--device` takes precedence for that run. Supported values are `cpu`, `cuda`, and explicit CUDA devices such as `cuda:0`.
+
+If you request `--device cuda` and no GPU is visible, the CLI now fails with a clear error instead of silently running on CPU.
+
+## Run Everything On GPU
+
+If you are already inside the repo-local virtualenv, run the CLI from source with `PYTHONPATH=src`:
+
+```bash
+PYTHONPATH=src python -m mechinterp.cli behavior ioi --device cuda
+```
+
+If you prefer to call the interpreter explicitly without activating the virtualenv first, use:
+
+```bash
+PYTHONPATH=src ./.venv/bin/python -m mechinterp.cli behavior ioi --device cuda
+```
+
+Before launching experiments, verify that this Python environment can see your GPU:
+
+```bash
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available(), torch.cuda.device_count()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no-gpu')"
+```
+
+To run the full workflow for a single task on GPU:
+
+```bash
+PYTHONPATH=src python -m mechinterp.cli behavior bigvul --device cuda
+PYTHONPATH=src python -m mechinterp.cli analyze bigvul --device cuda
+PYTHONPATH=src python -m mechinterp.cli cache bigvul --device cuda
+PYTHONPATH=src python -m mechinterp.cli probe bigvul --device cuda
+PYTHONPATH=src python -m mechinterp.cli ablate bigvul --device cuda
+PYTHONPATH=src python -m mechinterp.cli patch bigvul --device cuda
+PYTHONPATH=src python -m mechinterp.cli plot bigvul --device cuda
+PYTHONPATH=src python -m mechinterp.cli summarize bigvul --device cuda
+```
+
+Replace `ioi` with any supported task:
+
+- `addition`
+- `greater_than`
+- `sva`
+- `bigvul`
+
+To run the full workflow for every task on GPU:
+
+```bash
+for task in ioi addition greater_than sva bigvul; do
+  PYTHONPATH=src python -m mechinterp.cli behavior "$task" --device cuda
+  PYTHONPATH=src python -m mechinterp.cli analyze "$task" --device cuda
+  PYTHONPATH=src python -m mechinterp.cli cache "$task" --device cuda
+  PYTHONPATH=src python -m mechinterp.cli probe "$task" --device cuda
+  PYTHONPATH=src python -m mechinterp.cli ablate "$task" --device cuda
+  PYTHONPATH=src python -m mechinterp.cli patch "$task" --device cuda
+  PYTHONPATH=src python -m mechinterp.cli plot "$task" --device cuda
+  PYTHONPATH=src python -m mechinterp.cli summarize "$task" --device cuda
+done
+```
+
+If you want a specific GPU, use an explicit device such as `--device cuda:0`.
+
+If you later install the package into the virtualenv with `python -m pip install -e . --no-build-isolation`, you can drop `PYTHONPATH=src` and use `python -m mechinterp.cli ...` directly.
+
+## GPU Troubleshooting
+
+If PyTorch has CUDA support installed but `--device cuda` still fails:
+
+- check that the runtime actually exposes an NVIDIA GPU to this shell
+- confirm the NVIDIA driver is installed and working
+- verify `python -c "import torch; print(torch.cuda.is_available(), torch.cuda.device_count())"` reports an available device
+- if you are running in a container, VM, WSL, or managed environment, make sure GPU passthrough is enabled for that session
 
 ## What Each Command Does
 
